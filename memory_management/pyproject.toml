@@ -1,0 +1,16 @@
+[project]
+name = "memory-management-chatbot"
+version = "0.1.0"
+description = "Demo: Memory Management — Short-term & Long-term Memory cho Chatbot"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.136.1",
+    "langchain>=1.2.16",
+    "langchain-core>=1.3.2",
+    "langchain-openai>=0.3.0",
+    "langgraph>=1.1.10",
+    "python-dotenv>=1.2.2",
+    "rich>=14.0.0",
+    "sse-starlette>=3.4.2",
+    "uvicorn>=0.46.0",
+]

@@ -1,0 +1,41 @@
+# ═══════════════════════════════════════════════════════════════
+# Docker Compose — Memory Management Chatbot
+# ═══════════════════════════════════════════════════════════════
+#
+# Services:
+#   app — Python chatbot (LangGraph + LangChain)
+#
+# Volumes:
+#   sqlite-data — Persistent SQLite database
+#
+# Usage:
+#   docker compose up --build              # Demo mode
+#   docker compose run -it app python run.py --chat   # Interactive
+#   docker compose run app python run.py --status     # Xem memory
+#   docker compose run app python run.py --reset      # Xóa memory
+#   docker compose down                    # Stop
+#   docker compose down -v                 # Stop + xóa data
+# ═══════════════════════════════════════════════════════════════
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: memory-chatbot
+    env_file:
+      - .env
+    volumes:
+      - sqlite-data:/data/db
+    # network_mode: host cho phép container truy cập
+    # localhost của host machine (local LLM tại 127.0.0.1:1234)
+    # Nó cũng sẽ host server trên 127.0.0.1:8000 của host machine
+    network_mode: host
+    command: uvicorn api:app --host 0.0.0.0 --port 8000
+    # stdin_open + tty cho interactive mode (--chat)
+    stdin_open: true
+    tty: true
+
+volumes:
+  sqlite-data:
+    driver: local

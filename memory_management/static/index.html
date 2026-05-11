@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Agent Chat</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- CHAT AREA -->
+        <main class="chat-area">
+            <header class="glass-header">
+                <h1>🧠 Memory Agent</h1>
+                <div class="status-indicator">
+                    <span class="dot green"></span>
+                    <span>System Online</span>
+                </div>
+            </header>
+            
+            <div class="chat-history" id="chat-history">
+                <div class="message system">
+                    <div class="avatar">🤖</div>
+                    <div class="message-content">
+                        Xin chào! Tôi là trợ lý AI có khả năng ghi nhớ dài hạn. Bạn có thể bắt đầu trò chuyện ngay.
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <form id="chat-form">
+                    <textarea id="message-input" placeholder="Nhập tin nhắn của bạn..." rows="1" required></textarea>
+                    <button type="submit" id="send-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                    </button>
+                </form>
+            </div>
+        </main>
+
+        <!-- MEMORY PANEL -->
+        <aside class="memory-panel">
+            <header class="glass-header">
+                <h2>🗄️ System Memory</h2>
+                <button id="refresh-memory" title="Refresh Memory" class="icon-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                    </svg>
+                </button>
+            </header>
+
+            <div class="memory-content" id="memory-content">
+                <div class="memory-section">
+                    <h3>Short-term (RAM)</h3>
+                    <div class="stat-grid" id="short-term-stats">
+                        <!-- Loaded via JS -->
+                    </div>
+                </div>
+
+                <div class="memory-section">
+                    <h3>Long-term (SQLite)</h3>
+                    <div class="card">
+                        <h4>👤 Profile</h4>
+                        <ul id="profile-list" class="kv-list"></ul>
+                    </div>
+                    
+                    <div class="card">
+                        <h4>⭐ Preferences</h4>
+                        <ul id="prefs-list" class="kv-list"></ul>
+                    </div>
+                    
+                    <div class="card">
+                        <h4>📊 Statistics</h4>
+                        <div class="stat-grid" id="long-term-stats"></div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
