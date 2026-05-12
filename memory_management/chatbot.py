@@ -78,8 +78,12 @@ class MemoryAwareChatbot:
         for mode, data in self.chat_graph.stream(state, stream_mode=["messages", "updates"]):
             if mode == "messages":
                 msg, metadata = data
-                if metadata.get("langgraph_node") == "chat" and msg.content:
-                    yield msg.content
+                if metadata.get("langgraph_node") == "chat":
+                    if msg.content:
+                        yield msg.content
+                    elif getattr(msg, "tool_calls", None):
+                        for tool_call in msg.tool_calls:
+                            yield f"\n\n*(🛠️ Đang gọi hệ thống MCP: {tool_call['name']}...)*\n\n"
             elif mode == "updates":
                 if "chat" in data:
                     final_state.update(data["chat"])
@@ -143,9 +147,15 @@ class MemoryAwareChatbot:
         for mode, data in self.chat_graph.stream(state, stream_mode=["messages", "updates"]):
             if mode == "messages":
                 msg, metadata = data
-                if metadata.get("langgraph_node") == "chat" and msg.content:
-                    chunk = msg.content
-                    
+                if metadata.get("langgraph_node") == "chat":
+                    if msg.content:
+                        chunk = msg.content
+                    elif getattr(msg, "tool_calls", None):
+                        for tc in msg.tool_calls:
+                            chunk = f"\n*(🛠️ Đang gọi hệ thống MCP: {tc['name']}...)*\n"
+                    else:
+                        continue
+                        
                     # Xử lý hiển thị thẻ <think>
                     if "<think>" in chunk:
                         in_think_block = True

@@ -12,14 +12,15 @@ LangGraph StateGraph quản lý flow hội thoại. Tách làm 2 luồng:
    __start__ → extract_memory → save_memory → __end__
 """
 
-from typing import TypedDict
+from typing import TypedDict, Literal
 
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage
+from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage, ToolMessage
 from langgraph.graph import StateGraph, START, END
 
 from config import OPENAI_API_BASE, OPENAI_API_KEY, OPENAI_MODEL_NAME
 from memory import LongTermMemory
+from mcp_tools import MCP_TOOLS
 
 from rich.console import Console
 
@@ -52,13 +53,15 @@ THÔNG TIN VỀ NGƯỜI DÙNG:
 QUY TẮC BẮT BUỘC (BẠN PHẢI TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG XML SAU):
 
 <thought>
-(Quá trình phân tích, suy nghĩ nội bộ của bạn - có thể bằng tiếng Anh hoặc Việt)
+(Quá trình phân tích, lập kế hoạch. Bạn có thể suy nghĩ xem cần gọi MCP Tools nào để hoàn thành nhiệm vụ)
 </thought>
 <response>
-(Câu trả lời chính thức hiển thị cho người dùng: RẤT NGẮN GỌN 1-2 câu, bằng tiếng Việt, thân thiện, và xưng hô theo đúng thông tin bộ nhớ)
+(Câu trả lời chính thức hiển thị cho người dùng: RẤT NGẮN GỌN 1-2 câu, thân thiện. Chỉ đưa ra response khi bạn đã hoàn thành việc gọi tool hoặc muốn trả lời trực tiếp)
 </response>
 
-KHÔNG ĐƯỢC sinh ra bất kỳ văn bản nào nằm ngoài 2 thẻ này. KHÔNG tự biên diễn thêm lời của User.
+Bạn có các công cụ (MCP Tools) để tương tác: Database, Image Gen, Email Drafting, Mailer.
+Hãy tự động sử dụng chúng theo đúng thứ tự logic khi được yêu cầu chạy chiến dịch marketing hoặc thực hiện nhiệm vụ phức tạp.
+KHÔNG ĐƯỢC sinh ra bất kỳ văn bản nào nằm ngoài 2 thẻ XML này.
 """
 
 MEMORY_EXTRACTOR_PROMPT = """Phân tích đoạn hội thoại sau và trích xuất THÔNG TIN QUAN TRỌNG cần nhớ lâu dài.
@@ -115,14 +118,18 @@ def load_memory(state: ChatState) -> dict:
     ltm.increment_interaction()
     context = ltm.get_context()
 
-    return {"long_term_context": context}
+    # Append user message once at the start of the graph
+    updated_messages = list(state["messages"])
+    updated_messages.append(HumanMessage(content=state["user_message"]))
+
+    return {"long_term_context": context, "messages": updated_messages}
 
 
 def chat(state: ChatState) -> dict:
     """Node 2: Gọi LLM với system prompt + conversation history.
     Streaming được xử lý tự động bởi LangGraph stream_mode="messages".
     """
-    llm = create_llm(temperature=0.3, streaming=True)
+    llm = create_llm(temperature=0.3, streaming=True).bind_tools(MCP_TOOLS)
 
     system_prompt = SYSTEM_PROMPT.format(
         long_term_context=state["long_term_context"]
@@ -130,27 +137,49 @@ def chat(state: ChatState) -> dict:
 
     llm_messages = [
         SystemMessage(content=system_prompt),
-    ] + state["messages"] + [
-        HumanMessage(content=state["user_message"]),
-    ]
+    ] + state["messages"]
 
     response = llm.invoke(llm_messages, stop=["User:", "Human:", "tôi là Minh Khoa"])
-    ai_response = response.content
+    
+    # Dọn dẹp hallucination nếu có
+    if response.content and "User:" in response.content:
+        response.content = response.content.split("User:")[0].strip()
 
-    # Clean up hallucinated suffix just in case
-    if "User:" in ai_response:
-        ai_response = ai_response.split("User:")[0].strip()
-        response.content = ai_response
-
-    # Update messages with new exchange
+    # Update messages with LLM's response (or tool calls)
     updated_messages = list(state["messages"])
-    updated_messages.append(HumanMessage(content=state["user_message"]))
     updated_messages.append(response)
 
     return {
-        "ai_response": ai_response,
+        "ai_response": response.content,
         "messages": updated_messages,
     }
+
+def tool_node(state: ChatState) -> dict:
+    """Node 2b: Thực thi các MCP tools nếu được LLM yêu cầu."""
+    last_message = state["messages"][-1]
+    
+    tool_messages = []
+    for tool_call in last_message.tool_calls:
+        tool = next((t for t in MCP_TOOLS if t.name == tool_call["name"]), None)
+        if tool:
+            result = tool.invoke(tool_call["args"])
+            tool_messages.append(
+                ToolMessage(
+                    content=str(result),
+                    tool_call_id=tool_call["id"],
+                    name=tool_call["name"]
+                )
+            )
+            
+    updated_messages = list(state["messages"]) + tool_messages
+    return {"messages": updated_messages}
+
+def should_continue(state: ChatState) -> Literal["tools", END]:
+    """Quyết định chạy tools hay kết thúc."""
+    last_message = state["messages"][-1]
+    if getattr(last_message, "tool_calls", None):
+        return "tools"
+    return END
 
 
 def extract_memory(state: ChatState) -> dict:
@@ -246,10 +275,12 @@ def build_chat_graph() -> StateGraph:
     graph = StateGraph(ChatState)
     graph.add_node("load_memory", load_memory)
     graph.add_node("chat", chat)
+    graph.add_node("tools", tool_node)
     
     graph.add_edge(START, "load_memory")
     graph.add_edge("load_memory", "chat")
-    graph.add_edge("chat", END)
+    graph.add_conditional_edges("chat", should_continue)
+    graph.add_edge("tools", "chat")
     return graph.compile()
 
 
