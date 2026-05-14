@@ -9,6 +9,11 @@ OPENAI_API_BASE = os.getenv("OPENAI_API_BASE", "http://127.0.0.1:1234/v1")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "local-key")
 OPENAI_MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "local-model")
 
+# Langfuse Configuration
+LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY", "")
+LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY", "")
+LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+
 # SQLite database path
 # Docker: /data/db/long_term_memory.db (mounted volume)
 # Local:  ./memory_store/long_term_memory.db

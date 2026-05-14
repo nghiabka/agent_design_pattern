@@ -64,21 +64,25 @@ Hãy tự động sử dụng chúng theo đúng thứ tự logic khi được y
 KHÔNG ĐƯỢC sinh ra bất kỳ văn bản nào nằm ngoài 2 thẻ XML này.
 """
 
-MEMORY_EXTRACTOR_PROMPT = """Phân tích đoạn hội thoại sau và trích xuất THÔNG TIN QUAN TRỌNG cần nhớ lâu dài.
+MEMORY_EXTRACTOR_PROMPT = """Phân tích đoạn hội thoại để trích xuất THÔNG TIN THỰC TẾ về người dùng.
+    
+QUY TẮC NGHIÊM NGẶT:
+1. CHỈ trích xuất thông tin MỚI mà người dùng vừa cung cấp.
+2. KHÔNG được copy lại các ví dụ (như 'key=value', 'tên=Nghĩa').
+3. KHÔNG được ghi các dòng hướng dẫn (như 'nếu không có ghi: none').
+4. Nếu một mục không có thông tin mới, BẮT BUỘC ghi đúng từ: none
+5. Tránh các từ thừa như 'hoặc none', '...', '(info)'.
 
 --- HỘI THOẠI ---
 User: {user_msg}
 Assistant: {ai_msg}
 --- KẾT THÚC ---
 
-Hãy trả về CHÍNH XÁC theo format sau. Nếu không có thông tin mới, BẮT BUỘC ghi "none" trên dòng đó, KHÔNG được copy lại ví dụ.
-
-PROFILE_UPDATE: key=value (nếu user tiết lộ tên, tuổi, nghề nghiệp. Nếu không có ghi: none)
-PREFERENCE: key=value (nếu user tiết lộ sở thích. Nếu không có ghi: none)
-KEY_FACT: một câu ngắn (nếu user tiết lộ sự kiện quan trọng. Nếu không có ghi: none)
-ISSUE: vấn đề ngắn gọn (nếu user phàn nàn/gặp lỗi. Nếu không có ghi: none)
-
-CHỈ trả về 4 dòng trên, KHÔNG giải thích. KHÔNG ghi thêm bất cứ chữ nào khác.
+ĐỊNH DẠNG TRẢ VỀ (CHỈ 4 DÒNG):
+PROFILE_UPDATE: key=value
+PREFERENCE: key=value
+KEY_FACT: câu ngắn gọn
+ISSUE: vấn đề gặp phải
 """
 
 
@@ -191,9 +195,6 @@ def extract_memory(state: ChatState) -> dict:
         ai_msg=state["ai_response"],
     )
 
-    response = extractor_llm.invoke([HumanMessage(content=prompt)])
-    extraction = response.content.strip()
-
     # Parse extraction → structured dict
     extracted = {
         "profile_updates": [],
@@ -202,14 +203,20 @@ def extract_memory(state: ChatState) -> dict:
         "issues": [],
     }
 
+    # Các từ khóa "rác" thường gặp cần loại bỏ
+    JUNK_PATTERNS = ["key: value", "key=value", "hoặc none", "(info)", "...", "tên=", "sở thích=", "ví dụ", "nếu không có"]
+
     for line in extraction.split("\n"):
         line = line.strip()
+        if any(junk in line.lower() for junk in JUNK_PATTERNS):
+            continue
+
         if line.startswith("PROFILE_UPDATE:"):
             value = line.replace("PROFILE_UPDATE:", "").strip()
             if value.lower() != "none" and "=" in value:
                 for pair in value.split(","):
                     pair = pair.strip()
-                    if "=" in pair:
+                    if "=" in pair and not any(j in pair.lower() for j in JUNK_PATTERNS):
                         k, v = pair.split("=", 1)
                         extracted["profile_updates"].append(
                             {"key": k.strip(), "value": v.strip()}
@@ -219,7 +226,7 @@ def extract_memory(state: ChatState) -> dict:
             if value.lower() != "none" and "=" in value:
                 for pair in value.split(","):
                     pair = pair.strip()
-                    if "=" in pair:
+                    if "=" in pair and not any(j in pair.lower() for j in JUNK_PATTERNS):
                         k, v = pair.split("=", 1)
                         extracted["preferences"].append(
                             {"key": k.strip(), "value": v.strip()}

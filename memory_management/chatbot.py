@@ -23,8 +23,17 @@ import threading
 import sys
 
 from langchain_core.messages import HumanMessage, BaseMessage
+from langfuse.langchain import CallbackHandler
 
 from graph import build_chat_graph, build_extraction_graph, _get_ltm
+from config import LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST
+import os
+
+# Langfuse v4: Set global environment variables for the SDK
+os.environ["LANGFUSE_PUBLIC_KEY"] = LANGFUSE_PUBLIC_KEY
+os.environ["LANGFUSE_SECRET_KEY"] = LANGFUSE_SECRET_KEY
+os.environ["LANGFUSE_HOST"] = LANGFUSE_HOST
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
@@ -75,7 +84,31 @@ class MemoryAwareChatbot:
         
         final_state = state
         
-        for mode, data in self.chat_graph.stream(state, stream_mode=["messages", "updates"]):
+        
+        # Initialize Langfuse CallbackHandler for tracing (v4 style)
+        try:
+            langfuse_handler = CallbackHandler()
+            
+            # Verify Langfuse connectivity in console
+            if LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY:
+                console.print(f"  [bold green]📡 [Tracing] Trace handler created (v4). Host: {LANGFUSE_HOST}[/bold green]")
+            else:
+                console.print(f"  [bold red]⚠️ [Tracing] Missing Langfuse Keys! Check your .env file.[/bold red]")
+                
+        except Exception as e:
+            console.print(f"  [bold red]❌ [Tracing] Failed to init Langfuse: {e}[/bold red]")
+            langfuse_handler = None
+        
+        # Langfuse v4: Pass session_id and user_id via metadata
+        config = {
+            "callbacks": [langfuse_handler] if langfuse_handler else [],
+            "metadata": {
+                "session_id": self.user_id,
+                "user_id": self.user_id
+            }
+        }
+        
+        for mode, data in self.chat_graph.stream(state, config=config, stream_mode=["messages", "updates"]):
             if mode == "messages":
                 msg, metadata = data
                 if metadata.get("langgraph_node") == "chat":
@@ -144,7 +177,17 @@ class MemoryAwareChatbot:
         final_state = state
         ai_response_text = ""
         
-        for mode, data in self.chat_graph.stream(state, stream_mode=["messages", "updates"]):
+        # Initialize Langfuse CallbackHandler for tracing
+        langfuse_handler = CallbackHandler()
+        config = {
+            "callbacks": [langfuse_handler],
+            "metadata": {
+                "session_id": self.user_id,
+                "user_id": self.user_id
+            }
+        }
+        
+        for mode, data in self.chat_graph.stream(state, config=config, stream_mode=["messages", "updates"]):
             if mode == "messages":
                 msg, metadata = data
                 if metadata.get("langgraph_node") == "chat":
@@ -222,7 +265,15 @@ class MemoryAwareChatbot:
     def _run_background_extraction(self, extraction_state: dict):
         """Hàm chạy ngầm graph trích xuất bộ nhớ."""
         # console.print(f"  [dim]🔄 [Bg] Bắt đầu phân tích & lưu trí nhớ...[/dim]")
-        self.extraction_graph.invoke(extraction_state)
+        langfuse_handler = CallbackHandler()
+        config = {
+            "callbacks": [langfuse_handler],
+            "metadata": {
+                "session_id": self.user_id,
+                "user_id": self.user_id
+            }
+        }
+        self.extraction_graph.invoke(extraction_state, config=config)
 
     def _trim_messages(self):
         """Sliding window — giữ max N turns."""
