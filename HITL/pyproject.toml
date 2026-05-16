@@ -1,0 +1,13 @@
+[project]
+name = "hitl-demo"
+version = "0.1.0"
+description = "Ví dụ minh họa mẫu thiết kế Human-in-the-loop (HITL) với LangGraph"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain>=1.2.16",
+    "langchain-core>=1.3.2",
+    "langchain-openai>=0.3.0",
+    "langgraph>=0.2.0",
+    "python-dotenv>=1.2.2",
+    "rich>=14.0.0",
+]
