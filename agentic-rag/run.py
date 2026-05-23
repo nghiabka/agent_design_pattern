@@ -15,9 +15,9 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.rule import Rule
 
-from agent import run_question
-from documents import DOCUMENTS
-from tracing import langfuse_status
+from agentic_rag.documents import DOCUMENTS
+from agentic_rag.observability import langfuse_status
+from agentic_rag.service import run_question
 
 console = Console()
 

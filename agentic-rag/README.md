@@ -43,19 +43,28 @@ Knowledge base mô phỏng chính sách nội bộ của **FinFlow Bank**:
 
 ```text
 agentic-rag/
+├── agentic_rag/         # Package chính
+│   ├── api.py           # FastAPI routes
+│   ├── api_client.py    # HTTP client cho Streamlit
+│   ├── documents.py     # Load markdown documents
+│   ├── frontend.py      # Streamlit UI
+│   ├── graph.py         # LangGraph Agentic RAG workflow
+│   ├── observability.py # Langfuse callback + metadata config
+│   ├── retriever.py     # Local BM25-style retriever
+│   ├── schemas.py       # TypedDict + Pydantic schemas
+│   ├── service.py       # Application service layer
+│   ├── settings.py      # Env + path settings
+│   └── tools.py         # search_knowledge_base, read_source
 ├── kb/                  # Markdown knowledge base
-├── config.py            # Load env vars
-├── documents.py         # Load markdown documents
-├── retriever.py         # Local BM25-style retriever
-├── tools.py             # search_knowledge_base, read_source
-├── agent.py             # LangGraph Agentic RAG workflow
-├── tracing.py           # Langfuse callback + metadata config
-├── backend.py           # FastAPI backend cho chatbot
-├── streamlit_app.py     # Streamlit frontend gọi backend API
-├── run.py               # Demo + interactive chat
+├── backend.py           # Thin FastAPI entrypoint wrapper
+├── streamlit_app.py     # Thin Streamlit entrypoint wrapper
+├── run.py               # Demo + interactive CLI
 ├── pyproject.toml
 └── README.md
 ```
+
+Các file `agent.py`, `config.py`, `documents.py`, `retriever.py`, `tools.py`, `tracing.py`
+ở root chỉ là wrapper tương thích ngược. Code chính nằm trong package `agentic_rag/`.
 
 ## Setup & Chạy
 
