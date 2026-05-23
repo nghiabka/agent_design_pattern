@@ -66,30 +66,134 @@ agentic-rag/
 Các file `agent.py`, `config.py`, `documents.py`, `retriever.py`, `tools.py`, `tracing.py`
 ở root chỉ là wrapper tương thích ngược. Code chính nằm trong package `agentic_rag/`.
 
-## Setup & Chạy
+## Chạy App
+
+### 1. Chuẩn bị
+
+Yêu cầu:
+
+- Python 3.11+
+- `uv`
+- LLM endpoint OpenAI-compatible đang chạy, mặc định `http://127.0.0.1:1234/v1`
+- Docker nếu muốn chạy Langfuse local
 
 ```bash
 cd agent_design_pattern/agentic-rag
 cp .env.example .env
 uv sync
+```
 
-# Demo 3 câu hỏi mẫu
-uv run python run.py
+Mở `.env` và chỉnh nếu cần:
 
-# Hỏi một câu cụ thể
-uv run python run.py "Khách muốn chuyển 300 triệu qua mobile app có được không?"
+```bash
+OPENAI_API_BASE=http://127.0.0.1:1234/v1
+OPENAI_API_KEY=local-key
+OPENAI_MODEL_NAME=local-model
 
-# Chat tương tác
-uv run python run.py --chat
+BACKEND_URL=http://localhost:8000
 
-# Backend API
+LANGFUSE_ENABLED=true
+LANGFUSE_HOST=http://localhost:3000
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+```
+
+Nếu chưa có Langfuse key, để trống `LANGFUSE_PUBLIC_KEY` và `LANGFUSE_SECRET_KEY`; app vẫn chạy, chỉ tắt tracing.
+
+### 2. Chạy Langfuse Local
+
+Nếu bạn đã có Langfuse ở `http://localhost:3000`, bỏ qua bước này.
+
+Repo hiện có compose mẫu ở `memory_management/langfuse-compose.yml`:
+
+```bash
+cd agent_design_pattern/memory_management
+docker compose -f langfuse-compose.yml up -d
+```
+
+Mở Langfuse:
+
+```text
+http://localhost:3000
+```
+
+Tạo project/API keys trong Langfuse UI, sau đó copy `public_key` và `secret_key` vào `.env` của `agentic-rag`.
+
+### 3. Chạy Backend
+
+Terminal 1:
+
+```bash
+cd agent_design_pattern/agentic-rag
 uv run uvicorn backend:app --host 0.0.0.0 --port 8000
+```
 
-# Frontend Streamlit UI
+Kiểm tra:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Kết quả nên có:
+
+```json
+{
+  "status": "ok",
+  "documents": 7,
+  "langfuse": {
+    "enabled": true,
+    "configured": true,
+    "host": "http://localhost:3000"
+  }
+}
+```
+
+Nếu `configured=false`, nghĩa là thiếu `LANGFUSE_PUBLIC_KEY` hoặc `LANGFUSE_SECRET_KEY`.
+
+### 4. Chạy Frontend
+
+Terminal 2:
+
+```bash
+cd agent_design_pattern/agentic-rag
 uv run streamlit run streamlit_app.py
 ```
 
-## Backend / Frontend
+Mở app:
+
+```text
+http://localhost:8501
+```
+
+### 5. Test API Chat
+
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "Hạn mức chuyển khoản mobile app cá nhân là bao nhiêu?",
+    "session_id": "manual-test"
+  }'
+```
+
+Response có dạng:
+
+```json
+{
+  "answer": "... [KB-003]",
+  "response_time_seconds": 12.345,
+  "trace": {
+    "elapsed": 12.345,
+    "rounds": 1,
+    "search_history": ["..."],
+    "evidence": []
+  }
+}
+```
+
+Backend cũng gắn header `X-Process-Time-Seconds` cho mọi response HTTP.
+
+## Luồng Backend / Frontend
 
 Streamlit không chạy chatbot trực tiếp nữa. Luồng mới:
 
@@ -107,18 +211,21 @@ Backend endpoints:
 |----------|------|
 | `GET /health` | Runtime config, số tài liệu, Langfuse status |
 | `GET /sources` | Danh sách tài liệu trong knowledge base |
-| `POST /chat` | Chạy chatbot và trả về `answer` + retrieval trace |
+| `POST /chat` | Chạy chatbot và trả về `answer`, `response_time_seconds` + retrieval trace |
 
-Chạy 2 terminal:
+## CLI Demo
 
 ```bash
-# Terminal 1: backend chatbot
 cd agent_design_pattern/agentic-rag
-uv run uvicorn backend:app --host 0.0.0.0 --port 8000
 
-# Terminal 2: frontend
-cd agent_design_pattern/agentic-rag
-uv run streamlit run streamlit_app.py
+# Demo câu hỏi mẫu
+uv run python run.py
+
+# Hỏi một câu cụ thể
+uv run python run.py "Khách muốn chuyển 300 triệu qua mobile app có được không?"
+
+# Chat trong terminal
+uv run python run.py --chat
 ```
 
 ## Langfuse Tracing
@@ -159,17 +266,32 @@ Trace được gắn metadata:
 | `session_id` | Phiên chat Streamlit nếu chạy UI |
 | `user_id` | Cùng giá trị với `session_id` trong Streamlit |
 
-Chạy demo có tracing:
+Khi chạy backend hoặc CLI theo hướng dẫn ở trên, trace sẽ được gửi về Langfuse nếu keys hợp lệ.
+
+## 9router Compose
+
+Nếu bạn muốn chạy 9router bằng compose:
 
 ```bash
-uv run python run.py "Khách muốn chuyển 300 triệu qua mobile app có được không?"
+cd /data/learning/agent
+docker compose -f 9router/docker-compose.yml up -d
 ```
 
-Chạy backend/frontend có tracing:
+Compose tương đương:
 
 ```bash
-uv run uvicorn backend:app --host 0.0.0.0 --port 8000
-uv run streamlit run streamlit_app.py
+docker run -d \
+  -p 20129:20128 \
+  -v "$HOME/.9router:/app/data" \
+  -e DATA_DIR=/app/data \
+  --name 9router \
+  decolua/9router:latest
+```
+
+Có thể override port bằng biến môi trường:
+
+```bash
+NINEROUTER_HOST_PORT=20130 docker compose -f 9router/docker-compose.yml up -d
 ```
 
 ## Demo Questions
@@ -204,11 +326,8 @@ App Streamlit cung cấp giao diện chat để hỏi đáp với Agentic RAG:
 - Chat history theo phiên làm việc
 - Sidebar xem runtime config và toàn bộ knowledge base
 - Câu hỏi mẫu để test nhanh
+- Response time hiển thị ngay dưới mỗi câu trả lời
 - Trace cho từng câu trả lời: search history, retrieval judge, retrieved evidence
 - Citation dạng `[KB-xxx]` trong câu trả lời
 
-Chạy app:
-
-```bash
-uv run streamlit run streamlit_app.py
-```
+Xem mục **Chạy App** để chạy backend và frontend theo đúng thứ tự.
