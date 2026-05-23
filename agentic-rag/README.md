@@ -5,24 +5,32 @@
 RAG thường chỉ **retrieve một lần** rồi đưa context vào LLM để trả lời.
 Agentic RAG biến retrieval thành một vòng điều khiển có kiểm tra:
 
-1. **PLAN QUERY**: biến câu hỏi user thành truy vấn tìm kiếm tốt hơn
-2. **RETRIEVE**: gọi tool tìm tài liệu trong knowledge base
-3. **GRADE**: LLM đánh giá evidence đã đủ để trả lời chưa
-4. **REWRITE**: nếu thiếu, agent tự viết lại query và retrieve tiếp
-5. **ANSWER**: tổng hợp câu trả lời có citation, không bịa ngoài evidence
+1. **INPUT GUARD**: chặn prompt-injection cơ bản và che PII trước khi truy vấn
+2. **INTENT ROUTER**: chit-chat trả lời ngay, ngoài phạm vi thì decline, policy mới chạy RAG
+3. **REASONER CORE**: tạo action contract có schema, rewrite query và tách thành nhiều retrieval queries
+4. **ACTION VALIDATOR**: validate contract trước khi graph route sang retrieve/clarify/fallback/finalize
+5. **RETRIEVE**: chạy multi-query retrieval trên knowledge base
+6. **RETRIEVAL GRADER**: chấm relevance, coverage, source quality theo hướng CRAG
+7. **CONTEXT CONTROL + LOOP BUDGET**: giữ evidence tốt, lưu failure notes và retry có giới hạn
+8. **ANSWER + OUTPUT GUARD**: tổng hợp có citation và kiểm tra citation phải nằm trong evidence
 
 ## Architecture
 
 ```text
-  ┌──────────┐   ┌────────────┐   ┌──────────┐   ┌────────────┐
-  │ Question │──▶│ Plan Query │──▶│ Retrieve │──▶│ Grade Docs │
-  └──────────┘   └────────────┘   └──────────┘   └─────┬──────┘
-                                                        │
-                              enough evidence? ┌───────┴───────┐
-                                                ▼               ▼
-                                          ┌──────────┐   ┌──────────┐
-                                          │  Answer  │◀──│ Rewrite  │
-                                          └──────────┘   └──────────┘
+Question
+  → Input Guard
+  → Intent Router
+      ├─ chitchat      → Direct Answer → Output Guard
+      ├─ out_of_scope  → Decline       → Output Guard
+      └─ rag           → Reasoner Core
+                            → Action Validator
+                            → Multi-query Retrieve
+                            → Retrieval Grader
+                            → Context Control
+                            → Loop Budget
+                               ├─ enough evidence → Answer → Output Guard
+                               ├─ retryable       → Reasoner Core
+                               └─ exhausted       → Fallback → Output Guard
 ```
 
 ## Use Case: Internal Banking Policy QA
@@ -184,8 +192,40 @@ Response có dạng:
   "response_time_seconds": 12.345,
   "trace": {
     "elapsed": 12.345,
+    "guardrail": {
+      "status": "pass",
+      "pii_masked": false
+    },
+    "intent_route": "rag",
+    "intent": {
+      "route": "rag",
+      "intent": "transfer limit",
+      "reason": "requires policy evidence"
+    },
+    "reasoner": {
+      "action": "retrieve",
+      "rewritten_query": "...",
+      "retrieval_queries": ["...", "..."],
+      "required_evidence": ["..."]
+    },
+    "required_evidence": ["..."],
     "rounds": 1,
+    "retrieval_queries": ["...", "..."],
     "search_history": ["..."],
+    "judge": {
+      "sufficient": true,
+      "coverage_score": 0.9,
+      "accepted_source_ids": ["KB-003"]
+    },
+    "budget": {
+      "rounds": 1,
+      "max_rounds": 3,
+      "next": "answer"
+    },
+    "output_guard": {
+      "status": "pass",
+      "citations": ["KB-003"]
+    },
     "evidence": []
   }
 }
@@ -201,7 +241,8 @@ Streamlit không chạy chatbot trực tiếp nữa. Luồng mới:
 Browser
   → Streamlit frontend (:8501)
   → FastAPI backend (:8000)
-  → LangGraph Agentic RAG
+  → Input guard + intent router
+  → LangGraph Agentic RAG reasoning loop
   → LLM endpoint + Langfuse tracing
 ```
 
@@ -306,11 +347,12 @@ NINEROUTER_HOST_PORT=20130 docker compose -f 9router/docker-compose.yml up -d
 
 | | RAG thường | Agentic RAG |
 |---|---|---|
-| Query | Dùng trực tiếp câu hỏi user | LLM lập query tối ưu |
-| Retrieve | Một lần | Có thể nhiều vòng |
-| Kiểm tra context | Không rõ ràng | Có node `GRADE` |
-| Khi thiếu evidence | Vẫn có thể trả lời | Rewrite query hoặc nói thiếu |
-| Citation | Tùy prompt | Bắt buộc theo source id |
+| Query | Dùng trực tiếp câu hỏi user | Reasoner rewrite/decompose thành nhiều retrieval queries |
+| Retrieve | Một lần | Multi-query, có thể nhiều vòng |
+| Kiểm tra context | Không rõ ràng | `Retrieval Grader` chấm coverage/relevance/source quality |
+| Khi thiếu evidence | Vẫn có thể trả lời | Lưu failure notes, retry theo budget hoặc fallback |
+| Citation | Tùy prompt | Output guard kiểm tra citation phải nằm trong evidence |
+| Scope | Hay retrieve cả chit-chat/out-of-scope | Intent router/direct answer/decline trước retrieval |
 
 ## Tools
 
@@ -327,7 +369,8 @@ App Streamlit cung cấp giao diện chat để hỏi đáp với Agentic RAG:
 - Sidebar xem runtime config và toàn bộ knowledge base
 - Câu hỏi mẫu để test nhanh
 - Response time hiển thị ngay dưới mỗi câu trả lời
-- Trace cho từng câu trả lời: search history, retrieval judge, retrieved evidence
+- Trace cho từng câu trả lời: input guard, intent route, reasoner contract,
+  retrieval queries, retrieval judge, loop budget, output guard và retrieved evidence
 - Citation dạng `[KB-xxx]` trong câu trả lời
 
 Xem mục **Chạy App** để chạy backend và frontend theo đúng thứ tự.

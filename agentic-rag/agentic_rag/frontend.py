@@ -69,10 +69,38 @@ def backend_chat(question: str) -> dict[str, Any]:
 def render_trace(trace: dict[str, Any], max_rounds: int | None = None) -> None:
     max_rounds_text = f" · max rounds {max_rounds}" if max_rounds else ""
     st.caption(
+        f"route {trace.get('intent_route', 'rag')} · "
         f"{trace.get('rounds', 0)} retrieval round(s) · "
         f"{trace.get('elapsed', 0):.2f}s"
         f"{max_rounds_text}"
     )
+
+    intent = trace.get("intent") or {}
+    if intent:
+        st.markdown("**Intent router**")
+        st.json(intent, expanded=False)
+
+    guardrail = trace.get("guardrail") or {}
+    if guardrail:
+        st.markdown("**Input guardrail**")
+        st.json(guardrail, expanded=False)
+
+    reasoner = trace.get("reasoner") or {}
+    if reasoner:
+        st.markdown("**Reasoner contract**")
+        st.json(reasoner, expanded=False)
+
+    required_evidence = trace.get("required_evidence") or []
+    if required_evidence:
+        st.markdown("**Required evidence**")
+        for item in required_evidence:
+            st.markdown(f"- {item}")
+
+    retrieval_queries = trace.get("retrieval_queries") or []
+    if retrieval_queries:
+        st.markdown("**Retrieval queries**")
+        for idx, query in enumerate(retrieval_queries, 1):
+            st.code(f"{idx}. {query}", language="text")
 
     search_history = trace.get("search_history") or []
     if search_history:
@@ -84,6 +112,22 @@ def render_trace(trace: dict[str, Any], max_rounds: int | None = None) -> None:
     if judge:
         st.markdown("**Retrieval judge**")
         st.json(judge, expanded=False)
+
+    failure_notes = trace.get("failure_notes") or []
+    if failure_notes:
+        st.markdown("**Failure reflection notes**")
+        for note in failure_notes:
+            st.warning(note)
+
+    budget = trace.get("budget") or {}
+    if budget:
+        st.markdown("**Loop budget**")
+        st.json(budget, expanded=False)
+
+    output_guard = trace.get("output_guard") or {}
+    if output_guard:
+        st.markdown("**Output guard**")
+        st.json(output_guard, expanded=False)
 
     evidence = trace.get("evidence") or []
     if evidence:

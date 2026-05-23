@@ -13,9 +13,18 @@ from agentic_rag.schemas import AgenticRAGState, ChatResponse
 def compact_trace(state: AgenticRAGState, elapsed: float) -> dict[str, Any]:
     return {
         "elapsed": elapsed,
+        "guardrail": state.get("guardrail", {}),
+        "intent_route": state.get("intent_route", "rag"),
+        "intent": state.get("intent", {}),
+        "reasoner": state.get("reasoner", {}),
+        "required_evidence": state.get("required_evidence", []),
         "rounds": state.get("rounds", 0),
+        "retrieval_queries": state.get("retrieval_queries", []),
         "search_history": state.get("search_history", []),
         "judge": state.get("judge", {}),
+        "failure_notes": state.get("failure_notes", []),
+        "budget": state.get("budget", {}),
+        "output_guard": state.get("output_guard", {}),
         "evidence": state.get("evidence", []),
     }
 
