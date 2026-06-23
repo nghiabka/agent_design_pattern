@@ -29,20 +29,41 @@ def compact_trace(state: GeminiRAGState, elapsed: float) -> dict[str, Any]:
 def run_question_state(
     question: str,
     show_question: bool = False,
+    session_id: str | None = None,
+    user_id: str | None = None,
 ) -> GeminiRAGState:
     return _run_question_state(
         question=question,
         show_question=show_question,
+        session_id=session_id,
+        user_id=user_id,
     )
 
 
-def run_question(question: str) -> str:
-    return _run_question(question)
+def run_question(
+    question: str,
+    session_id: str | None = None,
+    user_id: str | None = None,
+) -> str:
+    return _run_question(
+        question,
+        session_id=session_id,
+        user_id=user_id,
+    )
 
 
-def run_with_trace(question: str) -> dict[str, Any]:
+def run_with_trace(
+    question: str,
+    session_id: str | None = None,
+    user_id: str | None = None,
+) -> dict[str, Any]:
     start = time.time()
-    state = run_question_state(question, show_question=True)
+    state = run_question_state(
+        question,
+        show_question=True,
+        session_id=session_id,
+        user_id=user_id,
+    )
     elapsed = time.time() - start
     return {
         "answer": state["answer"],

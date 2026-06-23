@@ -31,11 +31,13 @@ from rich.rule import Rule
 from rich.table import Table
 
 from gemini_rag.documents import ALL_CORPORA, CORPUS_DESCRIPTIONS
+from gemini_rag.observability import invoke_graph
 from gemini_rag.retriever import SearchResult, cross_corpus_retriever
 from gemini_rag.schemas import Evidence, GeminiRAGState
 from gemini_rag.settings import (
     MAX_HOPS,
     OPENAI_API_BASE,
+    OPENAI_ENABLE_THINKING,
     OPENAI_API_KEY,
     OPENAI_MAX_ATTEMPTS,
     OPENAI_MODEL_NAME,
@@ -53,6 +55,11 @@ def _create_llm(temperature: float = 0) -> ChatOpenAI:
         temperature=temperature,
         timeout=OPENAI_TIMEOUT_SECONDS,
         max_retries=0,
+        extra_body={
+            "chat_template_kwargs": {
+                "enable_thinking": OPENAI_ENABLE_THINKING,
+            }
+        },
     )
 
 
@@ -693,7 +700,12 @@ def create_initial_state(question: str) -> GeminiRAGState:
     }
 
 
-def run_question_state(question: str, show_question: bool = True) -> GeminiRAGState:
+def run_question_state(
+    question: str,
+    show_question: bool = True,
+    session_id: str | None = None,
+    user_id: str | None = None,
+) -> GeminiRAGState:
     """Run the 5-agent graph and return the final state."""
     if show_question:
         console.print()
@@ -705,9 +717,24 @@ def run_question_state(question: str, show_question: bool = True) -> GeminiRAGSt
         ))
 
     graph = build_gemini_rag_graph()
-    return graph.invoke(create_initial_state(question))
+    return invoke_graph(
+        graph,
+        create_initial_state(question),
+        question=question,
+        session_id=session_id,
+        user_id=user_id,
+    )
 
 
-def run_question(question: str) -> str:
-    result = run_question_state(question, show_question=True)
+def run_question(
+    question: str,
+    session_id: str | None = None,
+    user_id: str | None = None,
+) -> str:
+    result = run_question_state(
+        question,
+        show_question=True,
+        session_id=session_id,
+        user_id=user_id,
+    )
     return result["answer"]

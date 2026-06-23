@@ -6,6 +6,37 @@
 
 ---
 
+## Chạy project
+
+```bash
+uv sync
+uv run python run.py
+uv run python run.py --chat
+```
+
+Qwen3 thinking mode mặc định được tắt để giảm latency cho các agent trả JSON.
+Có thể bật lại khi cần:
+
+```env
+OPENAI_ENABLE_THINKING=true
+```
+
+### Langfuse tracing
+
+Mỗi câu hỏi có một root trace, bên trong gồm các LangGraph node và LLM call.
+Các câu hỏi trong cùng phiên `--chat` được gom chung bằng session ID.
+
+```env
+LANGFUSE_ENABLED=true
+LANGFUSE_BASE_URL=http://localhost:3000
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_ENVIRONMENT=development
+LANGFUSE_FLUSH_ON_RUN=true
+```
+
+Nếu tracing bị tắt hoặc thiếu key, workflow RAG vẫn chạy bình thường.
+
 ## Tổng quan
 
 **Agentic RAG Framework** là kiến trúc multi-agent được tích hợp vào Gemini Enterprise Agent Platform, giải quyết hạn chế của RAG truyền thống khi xử lý các truy vấn phức tạp trong doanh nghiệp — nơi thông tin bị phân mảnh trên nhiều nguồn dữ liệu ("data islands").

@@ -10,6 +10,7 @@ Usage:
 """
 
 import sys
+from uuid import uuid4
 
 from openai import OpenAIError
 from rich.console import Console
@@ -66,6 +67,7 @@ def print_intro() -> None:
 
 def run_demo() -> None:
     print_intro()
+    session_id = f"demo-{uuid4().hex}"
 
     for idx, item in enumerate(DEMO_QUESTIONS, 1):
         console.print()
@@ -74,7 +76,7 @@ def run_demo() -> None:
             style="bold white",
         ))
         console.print(f"  Expected hops: {' → '.join(item['expected_hops'])}")
-        run_question(item["question"])
+        run_question(item["question"], session_id=session_id)
         console.print("─" * 80)
 
     console.print()
@@ -88,6 +90,7 @@ def run_demo() -> None:
 
 def run_interactive() -> None:
     print_intro()
+    session_id = f"chat-{uuid4().hex}"
     console.print(Panel.fit(
         "[bold cyan]CROSS-CORPUS RAG CHAT[/bold cyan]\n"
         "[dim]Gõ 'corpora' để xem KB, 'quit' để thoát[/dim]",
@@ -116,7 +119,7 @@ def run_interactive() -> None:
             continue
 
         try:
-            run_question(user_input.strip())
+            run_question(user_input.strip(), session_id=session_id)
         except OpenAIError as exc:
             console.print(Panel(
                 f"Không gọi được model sau nhiều lần thử:\n{exc}",
